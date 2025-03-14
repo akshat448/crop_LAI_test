@@ -1,0 +1,23 @@
+[project]
+name = "ml-work"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "ee>=0.2",
+    "fire>=0.7.0",
+    "ipykernel>=6.29.5",
+    "matplotlib>=3.9.4",
+    "pandas>=2.2.3",
+    "pytorch-lightning>=2.5.0.post0",
+    "pytorch-wavelets>=1.3.0",
+    "pywavelets>=1.6.0",
+    "scikit-learn>=1.6.1",
+    "scipy>=1.13.1",
+    "seaborn>=0.13.2",
+    "torch==2.4.1",
+    "torch-optimizer>=0.3.0",
+    "torchmetrics>=1.6.1",
+    "torchvision>=0.19.1",
+]

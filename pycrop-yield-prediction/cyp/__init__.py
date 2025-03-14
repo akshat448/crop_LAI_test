@@ -1,0 +1,3 @@
+# From the paper: "We select 11 states in the US that account
+# for over 75% of the national soybean production"
+MAJOR_STATES = ['Madhya Pradesh', 'Rajasthan', 'Punjab', 'Uttar Pradesh','Chhattisgarh', 'Karnataka', 'Tamil Nadu', 'Gujarat', 'Haryana','Telangana', 'Maharashtra', 'Uttarakhand', 'Andhra Pradesh','Orissa', 'Jharkhand', 'Assam', 'Bihar', 'West Bengal', 'Kerala','Himachal Pradesh','Uttaranchal']

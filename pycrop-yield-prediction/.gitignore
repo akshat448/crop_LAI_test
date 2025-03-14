@@ -1,0 +1,7 @@
+*.pyc
+*.npy
+.DS_Store
+
+data/models
+
+__pycache__
