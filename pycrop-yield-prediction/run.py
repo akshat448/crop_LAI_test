@@ -413,7 +413,8 @@ class RunTask:
                        use_sparse_gp=False, 
                        num_inducing=100,
                        sparse_method='fitc', 
-                       device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")):
+                       #device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+                       device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
         histogram_path = Path(cleaned_data_path) / 'histogram_all_full.npz'
         
         model = InformerModel(input_dim=input_dim, savedir=savedir, 
@@ -434,17 +435,17 @@ if __name__ == '__main__':
     run_task = RunTask()
     run_task.train_informer(
         cleaned_data_path=Path(img_output),
-        input_dim=9,  # Your input feature dimension
+        input_dim=9,
         savedir=Path(models),
         times='all',
         pred_years=[2009],
         num_runs=1,
         train_steps=25000,
         batch_size=32,
-        starter_learning_rate=3e-4,  # Smaller learning rate for stability
+        starter_learning_rate=3e-4,
         weight_decay=0.01,
-        #l1_weight=0.001,  # Don't use L1 regularization with Informer
-        patience=10,  # More patience for convergence
+        #l1_weight=0.001,
+        patience=10,
         use_gp=True,
         sigma=1, 
         r_loc=0.5, 
@@ -454,5 +455,6 @@ if __name__ == '__main__':
         use_sparse_gp=True,
         num_inducing=3000,
         sparse_method='fitc',
-        device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+        #device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+        device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     )

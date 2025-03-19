@@ -33,7 +33,8 @@ class ConvModel(ModelBase):
     def __init__(self, in_channels=9, dropout=0.5, dense_features=None, time=32,
                  savedir=Path('data/models'), use_gp=True, sigma=1, r_loc=0.5, r_year=1.5,
                  sigma_e=0.01, sigma_b=0.01,
-                 device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")):
+                 #device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+                 device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
 
         # save values for reinitialization
         self.in_channels = in_channels

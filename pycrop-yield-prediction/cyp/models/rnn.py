@@ -37,7 +37,8 @@ class RNNModel(ModelBase):
     def __init__(self, in_channels=9, num_bins=32, hidden_size=128, rnn_dropout=0.75,
                  dense_features=None, savedir=Path('data/models'), use_gp=True,
                  sigma=1, r_loc=0.5, r_year=1.5, sigma_e=0.01, sigma_b=0.01,
-                 device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")):
+                 #device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+                 device=torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')):
 
         self.device = device  # Set the device attribute
 
