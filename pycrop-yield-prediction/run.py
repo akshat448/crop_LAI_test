@@ -441,10 +441,10 @@ if __name__ == '__main__':
         num_runs=1,
         train_steps=25000,
         batch_size=32,
-        starter_learning_rate=5e-4,  # Smaller learning rate for stability
-        weight_decay=0.005,
+        starter_learning_rate=3e-4,  # Smaller learning rate for stability
+        weight_decay=0.01,
         #l1_weight=0.001,  # Don't use L1 regularization with Informer
-        patience=20,  # More patience for convergence
+        patience=10,  # More patience for convergence
         use_gp=True,
         sigma=1, 
         r_loc=0.5, 
@@ -452,7 +452,7 @@ if __name__ == '__main__':
         sigma_e=0.32, 
         sigma_b=0.01, 
         use_sparse_gp=True,
-        num_inducing=1000,
+        num_inducing=3000,
         sparse_method='fitc',
         device=torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
     )

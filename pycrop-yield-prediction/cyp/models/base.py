@@ -329,6 +329,13 @@ class ModelBase:
         num_epochs = int(train_steps / (train_images.shape[0] / batch_size))
         print(f'Training for {num_epochs} epochs')
 
+        # Add learning rate scheduler
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, 
+            T_max=num_epochs,
+            eta_min=1e-6
+        )
+        
         train_scores = defaultdict(list)
         val_scores = defaultdict(list)
 
@@ -343,7 +350,7 @@ class ModelBase:
             self.model.train()
 
             running_train_scores = defaultdict(list)
-
+            
             for train_x, train_y in tqdm(train_dataloader):
                 optimizer.zero_grad()
                 pred_y = self.model(train_x)
@@ -402,6 +409,9 @@ class ModelBase:
                     self.model.load_state_dict(best_state)
                     print('Early stopping!')
                     break
+                
+            # Step the scheduler at the end of each epoch
+            scheduler.step()
 
         self.model.load_state_dict(best_state)
         return train_scores, val_scores

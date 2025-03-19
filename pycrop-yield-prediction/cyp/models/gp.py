@@ -71,6 +71,7 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform, cdist
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
+import math
 
 class GaussianProcess:
     """
@@ -196,27 +197,46 @@ class GaussianProcess:
                kernel[n_train:, :n_train].dot(K_inv).dot(Y_train - H_train.dot(beta))
 
         return pred
-
-    def run_sparse(self, feat_train, feat_test, loc_train, loc_test, year_train, year_test,
-               train_yield, model_weights, model_bias, debug_viz=False):
-        """Sparse GP implementation"""
-        
-        max_features = 100  # Try 100 instead of 1000/2000
     
-        feat_train = feat_train.astype(np.float32)
-        feat_test = feat_test.astype(np.float32)
-        loc_train = loc_train.astype(np.float32)
-        loc_test = loc_test.astype(np.float32)
-        year_train = year_train.astype(np.float32)
-        year_test = year_test.astype(np.float32)
-        train_yield = train_yield.astype(np.float32)
+    
+    def run_sparse(self, feat_train, feat_test, loc_train, loc_test, year_train, year_test,
+           train_yield, model_weights, model_bias, debug_viz=False):
+        """Sparse GP implementation with memory optimizations"""
         
-        if feat_train.shape[1] > max_features:
-            from sklearn.random_projection import GaussianRandomProjection
-            print(f"Reducing feature dimension from {feat_train.shape[1]} to {max_features}")
-            transformer = GaussianRandomProjection(n_components=max_features, random_state=42)
-            feat_train = transformer.fit_transform(feat_train)
-            feat_test = transformer.transform(feat_test)
+        # Reduce to a more reasonable number of features
+        max_features = 3000  # Significantly reduced from 20000
+        
+        # Process features in smaller batches to save memory
+        batch_size = 3000
+        num_batches = math.ceil(feat_train.shape[0] / batch_size)
+        
+        # Use IncrementalPCA instead of PCA for better feature compression
+        from sklearn.decomposition import IncrementalPCA
+        print(f"Reducing feature dimension from {feat_train.shape[1]} to {max_features}")
+        transformer = IncrementalPCA(n_components=max_features)
+        
+        # Fit IncrementalPCA in batches to save memory
+        for i in range(num_batches):
+            start_idx = i * batch_size
+            end_idx = min((i + 1) * batch_size, feat_train.shape[0])
+            transformer.partial_fit(feat_train[start_idx:end_idx])
+        
+        # Transform data in batches
+        feat_train_transformed = np.zeros((feat_train.shape[0], max_features))
+        feat_test_transformed = np.zeros((feat_test.shape[0], max_features))
+        
+        for i in range(num_batches):
+            start_idx = i * batch_size
+            end_idx = min((i + 1) * batch_size, feat_train.shape[0])
+            feat_train_transformed[start_idx:end_idx] = transformer.transform(feat_train[start_idx:end_idx])
+        
+        # Transform test features
+        for i in range(0, feat_test.shape[0], batch_size):
+            end_idx = min(i + batch_size, feat_test.shape[0])
+            feat_test_transformed[i:end_idx] = transformer.transform(feat_test[i:end_idx])
+            
+        feat_train = feat_train_transformed
+        feat_test = feat_test_transformed
         
         # Add a feature for the bias term
         H_train = np.concatenate((feat_train, np.ones((feat_train.shape[0], 1))), axis=1)
@@ -280,7 +300,17 @@ class GaussianProcess:
             
         # Ensure model_bias is 2-dimensional
         model_bias = np.array(model_bias).reshape(-1, 1)
-        
+        if len(model_weights.shape) > 1:
+            print(f"Original weight shape: {model_weights.shape}")
+            if model_weights.shape[1] != feat_train.shape[1] - 1:  # -1 for bias term
+                # Project the weights to match feature dimension
+                print("Projecting model weights to match feature dimension")
+                proj_weights = np.zeros((1, feat_train.shape[1] - 1))
+                # Use the original weights for the first positions
+                min_dim = min(model_weights.shape[1], feat_train.shape[1] - 1)
+                proj_weights[0, :min_dim] = model_weights[0, :min_dim]
+                model_weights = proj_weights
+            
         # Create the b vector with proper shape
         b = np.vstack([weights.reshape(-1, 1), model_bias])
         
@@ -352,6 +382,162 @@ class GaussianProcess:
             pred = H_test @ beta + K_star_m @ np.linalg.solve(K_mm, mu)
         
         return pred
+
+    # def run_sparse(self, feat_train, feat_test, loc_train, loc_test, year_train, year_test,
+    #            train_yield, model_weights, model_bias, debug_viz=False):
+    #     """Sparse GP implementation"""
+        
+    #     max_features = 20000  # Try 100 instead of 1000/2000
+    
+    #     feat_train = feat_train.astype(np.float32)
+    #     feat_test = feat_test.astype(np.float32)
+    #     loc_train = loc_train.astype(np.float32)
+    #     loc_test = loc_test.astype(np.float32)
+    #     year_train = year_train.astype(np.float32)
+    #     year_test = year_test.astype(np.float32)
+    #     train_yield = train_yield.astype(np.float32)
+        
+    #     if feat_train.shape[1] > max_features:
+    #         from sklearn.random_projection import GaussianRandomProjection
+    #         print(f"Reducing feature dimension from {feat_train.shape[1]} to {max_features}")
+    #         transformer = GaussianRandomProjection(n_components=max_features, random_state=42)
+    #         feat_train = transformer.fit_transform(feat_train)
+    #         feat_test = transformer.transform(feat_test)
+        
+    #     # Add a feature for the bias term
+    #     H_train = np.concatenate((feat_train, np.ones((feat_train.shape[0], 1))), axis=1)
+    #     H_test = np.concatenate((feat_test, np.ones((feat_test.shape[0], 1))), axis=1)
+        
+    #     Y_train = np.expand_dims(train_yield, axis=1)
+        
+    #     n_train = feat_train.shape[0]
+    #     n_test = feat_test.shape[0]
+        
+    #     # Normalize the locations and years
+    #     locations_all = self._normalize(np.concatenate((loc_train, loc_test), axis=0))
+    #     years_all = self._normalize(np.concatenate((year_train, year_test), axis=0))
+    #     years_all = np.expand_dims(years_all, axis=1)  # Make it 2D
+        
+    #     # Split back into train/test
+    #     locations_train = locations_all[:n_train]
+    #     locations_test = locations_all[n_train:]
+    #     years_train = years_all[:n_train]
+    #     years_test = years_all[n_train:]
+        
+    #     # Select inducing points
+    #     Z_loc, Z_year = self._select_inducing_points(locations_all, years_all)
+    #     m = Z_loc.shape[0]  # Number of inducing points
+        
+    #     if debug_viz and locations_train.shape[1] == 2:
+    #         # Simple visualization of inducing points and data points
+    #         plt.figure(figsize=(10, 8))
+    #         plt.scatter(locations_train[:, 0], locations_train[:, 1], c='blue', s=20, alpha=0.5, label='Training points')
+    #         plt.scatter(locations_test[:, 0], locations_test[:, 1], c='green', s=20, alpha=0.5, label='Test points')
+    #         plt.scatter(Z_loc[:, 0], Z_loc[:, 1], c='red', s=50, marker='x', label='Inducing points')
+    #         plt.legend()
+    #         plt.title('Data points and inducing points')
+    #         plt.savefig('/Users/akshat/Developer/ML_WORK/pycrop-yield-prediction/data/data_and_inducing.png')
+        
+    #     print("Computing kernel matrices...")
+    #     # Compute kernel matrices
+    #     K_mm = self._compute_kernel(Z_loc, Z_year)
+    #     K_mm += 1e-8 * np.eye(m)  # Add jitter for numerical stability
+        
+    #     K_nm = self._compute_kernel(locations_train, years_train, Z_loc, Z_year)
+    #     K_mn = K_nm.T
+        
+    #     K_star_m = self._compute_kernel(locations_test, years_test, Z_loc, Z_year)
+        
+    #     # Construct b vector (weights from deep model)
+    #     print(f"H_train shape: {H_train.shape}, model_weights shape: {model_weights.shape}")
+
+    #     # Ensure b has compatible shape with H_train for matrix multiplication
+    #     feature_dim = H_train.shape[1] - 1  # Number of features (excluding bias)
+
+    #     # Reshape weights to be compatible
+    #     if len(model_weights.shape) > 1:
+    #         weights = model_weights.flatten()[:feature_dim]
+    #     else:
+    #         weights = model_weights[:feature_dim]
+            
+    #     # If weights aren't sufficient length, pad with zeros
+    #     if weights.size < feature_dim:
+    #         weights = np.pad(weights, (0, feature_dim - weights.size))
+            
+    #     # Ensure model_bias is 2-dimensional
+    #     model_bias = np.array(model_bias).reshape(-1, 1)
+        
+    #     # Create the b vector with proper shape
+    #     b = np.vstack([weights.reshape(-1, 1), model_bias])
+        
+    #     print("Computing sparse approximation...")
+    #     if self.sparse_method == 'fitc':
+    #         # FITC approximation (Snelson & Ghahramani, 2006)
+    #         K_nn_diag = self._compute_diag_kernel(locations_train)
+    #         diag_correction = K_nn_diag - np.sum(K_nm * np.linalg.solve(K_mm, K_nm.T).T, axis=1)
+            
+    #         # Add noise and diagonal correction
+    #         Lambda = np.diag(diag_correction + self.sigma_e**2)
+            
+    #         # Compute posterior using Woodbury identity for efficiency
+    #         sigma_b_inv = 1.0 / self.sigma_b
+    #         H_train_T = H_train.T
+            
+    #         # Compute intermediate terms for numerical stability
+    #         L = np.linalg.cholesky(K_mm + K_mn @ np.linalg.solve(Lambda, K_nm))
+    #         c = np.linalg.solve(Lambda, Y_train - H_train @ b)
+    #         v = np.linalg.solve(L, K_mn @ c)
+            
+    #         # Update b with posterior information
+    #         B_inv = np.eye(H_train.shape[1]) * sigma_b_inv
+    #         beta = np.linalg.solve(
+    #             B_inv + H_train_T @ np.linalg.solve(Lambda, H_train),
+    #             H_train_T @ np.linalg.solve(Lambda, Y_train) + B_inv @ b
+    #         )
+            
+    #         # Compute mean prediction
+    #         pred = H_test @ beta + K_star_m @ np.linalg.solve(K_mm, v)
+            
+    #     else:  # 'vfe' method
+    #         # VFE approximation (Titsias, 2009)
+    #         # Cholesky decomposition for numerical stability
+    #         L_mm = np.linalg.cholesky(K_mm)
+            
+    #         # Compute intermediate matrices
+    #         Lm_inv_Kmn = np.linalg.solve(L_mm, K_mn)
+            
+    #         # Prior precision and regularization
+    #         sigma_inv = 1.0 / self.sigma_e**2
+    #         sigma_b_inv = 1.0 / self.sigma_b
+            
+    #         # Compute the posterior
+    #         A = sigma_inv * (Lm_inv_Kmn @ Lm_inv_Kmn.T) + np.eye(m)
+    #         L_A = np.linalg.cholesky(A)
+            
+    #         # Compute residuals
+    #         res = Y_train - H_train @ b
+            
+    #         # Solve systems efficiently
+    #         tmp = sigma_inv * np.linalg.solve(L_mm.T, (Lm_inv_Kmn @ res))
+    #         mu = np.linalg.solve(L_A.T, np.linalg.solve(L_A, tmp))
+            
+    #         # Compute updated beta incorporating prior
+    #         H_train_T = H_train.T
+    #         B_inv = np.eye(H_train.shape[1]) * sigma_b_inv
+            
+    #         # Approximation of K_inv for VFE
+    #         K_inv_approx = sigma_inv * np.eye(n_train) - \
+    #                     sigma_inv**2 * Lm_inv_Kmn.T @ np.linalg.solve(A, Lm_inv_Kmn)
+            
+    #         beta = np.linalg.solve(
+    #             B_inv + H_train_T @ K_inv_approx @ H_train,
+    #             H_train_T @ K_inv_approx @ Y_train + B_inv @ b
+    #         )
+            
+    #         # Final prediction
+    #         pred = H_test @ beta + K_star_m @ np.linalg.solve(K_mm, mu)
+        
+    #     return pred
 
     def run(self, feat_train, feat_test, loc_train, loc_test, year_train, year_test,
             train_yield, model_weights, model_bias):

@@ -438,14 +438,26 @@ class InformerModel(ModelBase):
         """
         Informer model for crop yield prediction
         """
+        # # Create the Informer model with appropriate architecture
+        # model = Informer(
+        #     input_dim=input_dim,
+        #     d_model=96,         # Model dimension
+        #     n_heads=6,          # Number of attention heads
+        #     d_ff=384,           # Feed-forward dimension
+        #     num_encoder_layers=3,
+        #     num_decoder_layers=2,
+        #     dropout=0.2,
+        #     distil=True         # Use distillation in encoder
+        # )
+        
         # Create the Informer model with appropriate architecture
         model = Informer(
             input_dim=input_dim,
-            d_model=64,         # Model dimension
+            d_model=96,         # Model dimension
             n_heads=4,          # Number of attention heads
-            d_ff=256,           # Feed-forward dimension
-            num_encoder_layers=3,
-            num_decoder_layers=2,
+            d_ff=160,           # Feed-forward dimension
+            num_encoder_layers=2,
+            num_decoder_layers=1,
             dropout=0.2,
             distil=True         # Use distillation in encoder
         )
